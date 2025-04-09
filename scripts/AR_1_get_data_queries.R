@@ -13,7 +13,6 @@
 ##########
 
 if(!require("odbc"))        install.packages("odbc",        repos='http://cran.us.r-project.org')
-if(!require("plyr"))        install.packages("plyr",        repos='http://cran.us.r-project.org')
 if(!require("tidyverse"))   install.packages("tidyverse",   repos='http://cran.us.r-project.org')
 if(!require("devtools"))    install.packages("devtools",   repos='http://cran.us.r-project.org')
 if(!require("FMAtools"))    devtools::install_github("Alaska-Fisheries-Monitoring-Analytics/FMAtools")

@@ -7,7 +7,6 @@
 # Set up environment -----------------------------------------------------------
 
 # Load pkgs
-if(!require("plyr"))        install.packages("plyr",        repos='http://cran.us.r-project.org')
 if(!require("reshape2"))    install.packages("reshape2",    repos='http://cran.us.r-project.org')
 if(!require("tidyverse"))   install.packages("tidyverse",       repos='http://cran.us.r-project.org')
 if(!require("data.table"))  install.packages("data.table",  repos='http://cran.us.r-project.org')

@@ -7,11 +7,11 @@
 # Set up environment -----------------------------------------------------------
 
 # Load pkgs
-if(!require("plyr"))        install.packages("plyr",        repos='http://cran.us.r-project.org')
 if(!require("reshape2"))    install.packages("reshape2",    repos='http://cran.us.r-project.org')
-if(!require("tidyverse"))   install.packages("tidyverse",       repos='http://cran.us.r-project.org')
+if(!require("tidyverse"))   install.packages("tidyverse",   repos='http://cran.us.r-project.org')
 if(!require("data.table"))  install.packages("data.table",  repos='http://cran.us.r-project.org')
 if(!require("sqldf"))       install.packages("sqldf",       repos='http://cran.us.r-project.org')
+if(!require("xlsx"))        install.packages("xlsx",        repos='http://cran.us.r-project.org')
 if(!require("devtools"))    install.packages("devtools",    repos='http://cran.us.r-project.org')
 if(!require("FMAtools"))    devtools::install_github("Alaska-Fisheries-Monitoring-Analytics/FMAtools")
 
@@ -135,6 +135,44 @@ summ_subcat_units <-
 #             ,   .groups = "drop" 
 #   )
 
+
+
+# Next, for each Parent CATEGORY
+# Category-level summary.  Long format
+# Used in summary table in the report (not for numerator of rate)
+summ_cats <-
+  df_obs_statements %>%
+  group_by(CALENDAR_YEAR = FIRST_VIOL_YEAR, CATEGORY) %>%
+  summarise(Statements = n_distinct(OLE_OBS_STATEMENT_SEQ),
+            Subcategories_Selected = n_distinct(SUBCATEGORY),
+            Regs_Selected    = n_distinct(OLE_REGULATION_SEQ),
+            Occurrences      = n_distinct(OLE_OBS_STATEMENT_UNIT_SEQ),
+            .groups = "drop" ) %>%
+  # couldn't figure out how to get the distinct INCIDENT UNITS to list in the summarize, 
+  # so I'm doing it separately and left-joining it, oh well.
+  # Also re-naming the units for more clarity in the report
+  left_join(
+    df_obs_statements %>%
+      filter(!is.na(OLE_OBS_STATEMENT_UNIT_SEQ)) %>% 
+      distinct(CALENDAR_YEAR = FIRST_VIOL_YEAR, CATEGORY, INCIDENT_UNIT) %>%
+      mutate(INCIDENT_UNIT = ifelse(INCIDENT_UNIT == 'DEPL', 'Deployments', INCIDENT_UNIT),
+             INCIDENT_UNIT = ifelse(INCIDENT_UNIT == 'TRIP', 'Trips',       INCIDENT_UNIT),
+             INCIDENT_UNIT = ifelse(INCIDENT_UNIT == 'HAUL', 'Hauls',       INCIDENT_UNIT),
+             INCIDENT_UNIT = ifelse(INCIDENT_UNIT == 'SAMP', 'Samples',     INCIDENT_UNIT),
+             INCIDENT_UNIT = ifelse(INCIDENT_UNIT == 'MARM', 'Marine Mammal Interactions', INCIDENT_UNIT),
+             INCIDENT_UNIT = ifelse(INCIDENT_UNIT == 'OFFL', 'Offloads',    INCIDENT_UNIT),
+             INCIDENT_UNIT = ifelse(INCIDENT_UNIT == 'DAYS', 'Days',        INCIDENT_UNIT),
+             ) %>%
+      group_by(CALENDAR_YEAR, CATEGORY) %>%
+      summarise(Occurrence_Units        = paste(INCIDENT_UNIT, collapse = ", "),
+                .groups = "drop" ) 
+              )
+
+# Export for the report
+write.xlsx(file = paste0("tables/tbl_", adp_yr,  "_summ_cats.xlsx"
+                         ),
+           x    = summ_cats 
+           )
 
 
 
