@@ -46,7 +46,6 @@ load(file = file_3_name)
 #Identify the available sheets
 excel_sheets(odds_file)
 odds_dat <- read_excel(odds_file, sheet = "2024 Issues") #TODO - update this every year
->>>>>>> main
 
 rm(list = ls()[!ls() %in% c("df_obs_statements", "subcat_units_rate", "subcat_units_rate_for_factors","assignments_dates_cr_perm",
                             "start_color", "end_color", "rate_x", "adp_yr", "AnnRpt_EnfChp_dribble", "odds_dat")])
@@ -245,7 +244,7 @@ T_statement_totals <-
                 )
               
         )
-  ) %>%
+      ) %>% 
   mutate(CATEGORY = str_to_title(CATEGORY),
          CATEGORY = case_when(str_detect(CATEGORY, "Uscg-Equipment") ~
                                 "Safety-USCG: Equipment",
@@ -268,8 +267,36 @@ T_statement_totals <- autofit(flextable(T_statement_totals))
 T_statement_totals <- 
   T_statement_totals %>% colformat_double() %>% 
   hline(i = ~ before(Category, "Total"), border = fp_border_default())
+#T_statement_totals
 
-T_statement_totals
+#ODDS
+odds_table <- 
+  merge(odds_dat %>% group_by(Port = `Trip Ending Port`, 
+                              Issue = `Issue Category`) %>% 
+          summarize(total_records = n()) %>%
+          pivot_wider(names_from = Issue, values_from = total_records)
+        ,
+        odds_dat %>% group_by(Port = `Trip Ending Port`) %>% 
+          summarize(total_records = n(),
+                    Cases = sum(!is.na(`Case Number`)))
+  ) %>% arrange(desc(total_records)) %>%
+  rename(`Ending Port` = Port,
+         `Records (#)` = total_records,
+         `Cases (#)` = Cases) %>% 
+  select(-`Records (#)`) #Decision by OLE
+
+# add a total row for this table
+odds_totals <- colSums(odds_table[sapply(odds_table, is.numeric)], na.rm = TRUE) #only numeric columns
+total_row <- c(Name = "Total", odds_totals) # add a descriptor
+
+odds_table <- rbind(odds_table, total_row) # add row to table
+
+odds_table <- autofit(flextable(odds_table))
+
+odds_table <- #Add pretty line obove totals as in prior tables
+  odds_table %>% colformat_double() %>% 
+  hline(i = ~ before(`Ending Port`, "Total"), border = fp_border_default())
+#odds_table
 
 
 #ODDS
@@ -320,7 +347,7 @@ breaks_fxn <- function(cats, df_in, rate_x = 1) {
   breaks_list <- setNames(vector("list", length(cats)), cats)
   
   for (cat in cats) {
-    
+
     # Subset RATE values only for this category
     x_subset <- df_in$RATE[df_in$SUPER_CAT == cat]
     
@@ -470,29 +497,17 @@ super_levels$SUPER_FACT = paste0(super_levels$SUPER_CAT, "_FACTORS")
 
 #Lets get the super group
 for(i in 1:nrow(super_levels)){
-  #TESTING i <- 1  
-  df_super <- for_figures %>% filter(SUPER_CAT == super_levels$SUPER_CAT[i])
-  df_super$Label <- factor(df_super$Label, levels = sort(unique(df_super$Label)))
-  # This ensures the lowest interval is first in levels(), and the highest is last.
-  
-  # 2) Grab only rows that have the highest (last) factor level
-  highest_level <- tail(levels(df_super$Label), 1)             # e.g. "(2,3]"
-  df_highest    <- subset(df_super, Label == highest_level)
-  
-  #Now we grab the factors data
-  df <- for_figures %>% filter(SUPER_CAT == super_levels$SUPER_FACT[i])
-  
-  #Make a SASH df for adding in later
-  df_SASH <- df %>% filter(SUBCATEGORY %in% c("SEXUAL HARASSMENT", "SEXUAL ASSAULT"))
-  
-  #Now limit df to just those categories
-  df <- merge(df, 
-              df_highest %>% select(CATEGORY, SUBCATEGORY, INCIDENT_UNIT) %>% distinct())
-  df <- rbind(df, df_SASH)
-  
-  if(i == 1){df_out <- df}
-  if(i > 1){df_out <- rbind(df_out, df)}
-}
+#TESTING i <- 1  
+df_super <- for_figures %>% filter(SUPER_CAT == super_levels$SUPER_CAT[i])
+df_super$Label <- factor(df_super$Label, levels = sort(unique(df_super$Label)))
+# This ensures the lowest interval is first in levels(), and the highest is last.
+
+# 2) Grab only rows that have the highest (last) factor level
+highest_level <- tail(levels(df_super$Label), 1)             # e.g. "(2,3]"
+df_highest    <- subset(df_super, Label == highest_level)
+
+#Now we grab the factors data
+df <- for_figures %>% filter(SUPER_CAT == super_levels$SUPER_FACT[i])
 
 cats <- super_levels$SUPER_FACT
 for_factor_figures <- suppressWarnings(breaks_fxn(cats, df_out, rate_x = rate_x))
@@ -502,14 +517,14 @@ for_factor_figures <- suppressWarnings(breaks_fxn(cats, df_out, rate_x = rate_x)
 #Make plot
 
 for(i in 1:length(cats)){
-  factor_plot <- plot_format_fxn(df = for_factor_figures %>% filter(SUPER_CAT == cats[i]), 
-                                 rate_x = rate_x, 
-                                 start_color = start_color, 
-                                 end_color = end_color,
-                                 facet_formula = NMFS_REGION ~ COVERAGE_TYPE + VESSEL_TYPE + INCIDENT_UNIT
-  )
-  #Give it a name
-  assign(paste0(tolower(gsub("-", "_", super_levels$SUPER_FACT[i])), "_plot"), factor_plot)
+factor_plot <- plot_format_fxn(df = for_factor_figures %>% filter(SUPER_CAT == cats[i]), 
+                               rate_x = rate_x, 
+                               start_color = start_color, 
+                               end_color = end_color,
+                               facet_formula = NMFS_REGION ~ COVERAGE_TYPE + VESSEL_TYPE + INCIDENT_UNIT
+                               )
+#Give it a name
+assign(paste0(tolower(gsub("-", "_", super_levels$SUPER_FACT[i])), "_plot"), factor_plot)
 }
 
 #cleanup
