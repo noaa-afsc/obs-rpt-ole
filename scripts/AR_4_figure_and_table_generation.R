@@ -278,8 +278,13 @@ T_statement_totals <-
                                 "MARPOL/Oil Spill",
                               str_detect(CATEGORY, "Interference") ~
                                 "Interference with Duties",
-                              TRUE ~ CATEGORY))
+                              TRUE ~ CATEGORY)) %>%
+  rename("Category" = CATEGORY)
 T_statement_totals <- autofit(flextable(T_statement_totals))
+#Add a line above totals https://github.com/davidgohel/flextable/issues/421
+T_statement_totals <- 
+  T_statement_totals %>% colformat_double() %>% 
+  hline(i = ~ before(Category, "Total"), border = fp_border_default())
 T_statement_totals
 
 # Create a new Word document (portrait by default)
