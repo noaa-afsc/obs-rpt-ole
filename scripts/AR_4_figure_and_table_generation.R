@@ -16,6 +16,8 @@ library(officer)
 library(readxl) #for importing the odds data
 library(FMAtools)
 
+rm(list = ls())
+
 # User inputs ------------------------------------------------------------------------------------------------------------
 # Set the .Rdata file we will load
 file_3_name <- "AR_3_rate_output.Rdata"
@@ -47,7 +49,8 @@ load(file = file_3_name)
 excel_sheets(odds_file)
 odds_dat <- read_excel(odds_file, sheet = "2024 Issues") #TODO - update this every year
 
-rm(list = ls()[!ls() %in% c("df_obs_statements", "subcat_units_rate", "subcat_units_rate_for_factors","assignments_dates_cr_perm",
+rm(list = ls()[!ls() %in% c("df_obs_statements", "subcat_units_rate", "subcat_units_rate_for_factors",
+                            "assignments_dates_cr_perm", "v_unmtrd_plant_offloads",
                             "start_color", "end_color", "rate_x", "adp_yr", "AnnRpt_EnfChp_dribble", "odds_dat")])
 # Data manipulation ----------------------------------------------------------------------------------------------------
 
@@ -206,9 +209,20 @@ T_statement_totals <-
   #   b) come up with a way to handle them
   
   # Also adding add'l columns for more data
-  
-  rbind(df_obs_statements %>%
-          filter(FIRST_VIOL_YEAR == adp_yr) %>% 
+  # UPDATE for new GIT issue re: need to filter out the occurrences associated with UNMONITORED PLANT OFFLOADS
+  # ADK 20250506
+  df_obs_statements_offl_fltr <-
+    df_obs_statements %>% 
+      mutate(DUMMY = paste0(CRUISE, ',', PERMIT, ',', ANSWER)) %>%
+      filter(FIRST_VIOL_YEAR == adp_yr,
+             (INCIDENT_UNIT != 'OFFL' | is.na(INCIDENT_UNIT) |
+                (INCIDENT_UNIT == 'OFFL' & 
+                   ! DUMMY %in% (v_unmtrd_plant_offloads)
+                 )
+              )
+             ) 
+T_statement_totals <-
+  rbind(df_obs_statements_offl_fltr %>%
           group_by(CATEGORY) %>%
           summarise(`Statements (#)`              = n_distinct(OLE_OBS_STATEMENT_SEQ),
                     `Regs Selected (#)`           = n_distinct(OLE_REGULATION_SEQ),
@@ -220,9 +234,8 @@ T_statement_totals <-
           # so I'm doing it separately and left-joining it
           # Makes the code ugly.  But oh well.
           left_join(
-            df_obs_statements %>%
-              filter(!is.na(OLE_OBS_STATEMENT_UNIT_SEQ), # here we DO need to filter out the NAs because we only care about the units that have value
-                     FIRST_VIOL_YEAR == adp_yr) %>% 
+            df_obs_statements_offl_fltr %>% 
+              filter(!is.na(OLE_OBS_STATEMENT_UNIT_SEQ)) %>%  # here we DO need to filter out the NAs because we only care about the units that have value
               distinct(CATEGORY, INCIDENT_UNIT) %>%
               mutate(INCIDENT_UNIT = ifelse(INCIDENT_UNIT == 'DEPL', 'Deployments', INCIDENT_UNIT),
                      INCIDENT_UNIT = ifelse(INCIDENT_UNIT == 'TRIP', 'Trips',       INCIDENT_UNIT),
@@ -238,16 +251,14 @@ T_statement_totals <-
           ) %>% 
           arrange(desc(`Statements (#)`)),
         merge(data.frame(CATEGORY = "TOTAL"),
-              df_obs_statements %>%
-                filter(FIRST_VIOL_YEAR == adp_yr) %>%
+              df_obs_statements_offl_fltr %>%
                 summarise(`Statements (#)`              = n_distinct(OLE_OBS_STATEMENT_SEQ),
                           `Regs Selected (#)`           = n_distinct(OLE_REGULATION_SEQ),
                           `Occurrences (#)`             = n_distinct(OLE_OBS_STATEMENT_UNIT_SEQ, na.rm = TRUE),
                           .groups = "drop" ) %>%
                 cross_join(
                   df_obs_statements %>%
-                    filter(!is.na(OLE_OBS_STATEMENT_UNIT_SEQ), # here it is OK to filter them out because we only care about the units that have value
-                           FIRST_VIOL_YEAR == adp_yr) %>% 
+                    filter(!is.na(OLE_OBS_STATEMENT_UNIT_SEQ)) %>% # here it is OK to filter them out because we only care about the units that have value
                     distinct(INCIDENT_UNIT) %>%
                     mutate(INCIDENT_UNIT = ifelse(INCIDENT_UNIT == 'DEPL', 'Deployments', INCIDENT_UNIT),
                            INCIDENT_UNIT = ifelse(INCIDENT_UNIT == 'TRIP', 'Trips',       INCIDENT_UNIT),

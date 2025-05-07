@@ -8,8 +8,9 @@
 
 # Load pkgs
 if(!require("plyr"))        install.packages("plyr",        repos='http://cran.us.r-project.org')
+if(!require("dplyr"))       install.packages("dplyr",       repos='http://cran.us.r-project.org')
 if(!require("reshape2"))    install.packages("reshape2",    repos='http://cran.us.r-project.org')
-if(!require("tidyverse"))   install.packages("tidyverse",       repos='http://cran.us.r-project.org')
+if(!require("tidyverse"))   install.packages("tidyverse",   repos='http://cran.us.r-project.org')
 if(!require("data.table"))  install.packages("data.table",  repos='http://cran.us.r-project.org')
 if(!require("sqldf"))       install.packages("sqldf",       repos='http://cran.us.r-project.org')
 if(!require("devtools"))    install.packages("devtools",    repos='http://cran.us.r-project.org')
@@ -159,39 +160,51 @@ summ_units_used <-
 # Units Numerator------------------------
 # Here is where we summarize how many units were reported for each statement
 
+
+# UPDATE for new GIT issue re: need to filter out the occurrences associated with UNMONITORED PLANT OFFLOADS
+# ADK 20250506
+# Make this next df to use for that purpose
+v_unmtrd_plant_offloads <-
+  df_obs_offloads %>%
+  mutate(DUMMY = paste0(CRUISE, ',', PERMIT, ',', OFFLOAD_SEQ)) %>%
+  filter(VESSEL_OR_PLANT == 'P',
+         PLANT_OFFL_MONITORED == 'N') %>%
+  select (DUMMY) %>%
+  pull()
+
 # First, for each REGULATION
 # long format: reg-level summary
 summ_regs_units <-
   df_obs_statements %>% 
-  filter(!is.na(OLE_OBS_STATEMENT_UNIT_SEQ)) %>%
+  mutate(DUMMY = paste0(CRUISE, ',', PERMIT, ',', ANSWER)) %>%
+  filter(!is.na(OLE_OBS_STATEMENT_UNIT_SEQ),
+         (INCIDENT_UNIT != 'OFFL' |
+            (INCIDENT_UNIT == 'OFFL' & 
+               ! DUMMY %in% (v_unmtrd_plant_offloads)
+             )
+          )
+         ) %>%
   group_by(CALENDAR_YEAR = FIRST_VIOL_YEAR, CATEGORY, SUBCATEGORY, OLE_REGULATION_SEQ, REG_SUMMARY, INCIDENT_UNIT) %>%
   summarise(N_STATEMENTS = n_distinct(OLE_OBS_STATEMENT_SEQ),
             N_UNITS_REPORTED = n_distinct(OLE_OBS_STATEMENT_UNIT_SEQ),
             .groups = "drop")
 
-# wide format: reg-level summary.  Not used
-# summ_regs_units <-
-#   df_obs_statements %>%
-#   group_by(CALENDAR_YEAR = FIRST_VIOL_YEAR, OLE_REGULATION_SEQ, REG_SUMMARY, CATEGORY, SUBCATEGORY) %>%
-#   summarize(N_DISTINCT_CRUISES_REPORTED      = n_distinct(CRUISE)
-#             ,   N_DISTINCT_VESSPLANTS_REPORTED   = n_distinct(PERMIT[!is.na(PERMIT) & as.numeric(PERMIT) != 0])
-#             ,   N_HAULS           = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'HAUL' & !is.na(INCIDENT_UNIT)])
-#             ,   N_OFFLOADS        = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'OFFL' & !is.na(INCIDENT_UNIT)]) 
-#             ,   N_TRIPS           = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'TRIP' & !is.na(INCIDENT_UNIT)])
-#             ,   N_DAYS            = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'DAYS' & !is.na(INCIDENT_UNIT)])
-#             ,   N_DEPL            = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'DEPL' & !is.na(INCIDENT_UNIT)])
-#             ,   N_SAMPLES         = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'SAMP' & !is.na(INCIDENT_UNIT)])
-#             ,   N_MARINE_MAMMALS  = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'MARM' & !is.na(INCIDENT_UNIT)])
-#             ,   N_UNIT_ISSUES     = n_distinct(OLE_OBS_STATEMENT_DETAIL_SEQ[!is.na(UNIT_ISSUE)])
-#             ,   .groups = "drop" 
-#   )
 
 
 # Next, for each SUBCATEGORY
 # Subcat-level summary.  Long format
+# UPDATE for new GIT issue re: need to filter out the occurrences associated with UNMONITORED PLANT OFFLOADS
+# ADK 20250506
 summ_subcat_units <-
   df_obs_statements %>%
-  filter(!is.na(OLE_OBS_STATEMENT_UNIT_SEQ)) %>% 
+  mutate(DUMMY = paste0(CRUISE, ',', PERMIT, ',', ANSWER)) %>%
+  filter( !is.na(OLE_OBS_STATEMENT_UNIT_SEQ),
+         (INCIDENT_UNIT != 'OFFL' |
+         (INCIDENT_UNIT == 'OFFL' & 
+            ! DUMMY %in% (v_unmtrd_plant_offloads)
+          )
+          )
+         ) %>% 
   # TODO: do something about these. 
   # Possibly find them from the unit_issue and update the units data???? For now, just filtering them out.
   # UPDATE 20250411: handled them all for 2024.  Only 2023 is not handled and we don't care because we aren't doing YOY.
@@ -200,26 +213,7 @@ summ_subcat_units <-
             DISTINCT_REGS_SELECTED = n_distinct(OLE_REGULATION_SEQ),
             N_REG_SELECTIONS       = n_distinct(OLE_OBS_STATEMENT_DETAIL_SEQ),
             N_UNITS_REPORTED       = n_distinct(OLE_OBS_STATEMENT_UNIT_SEQ),
-            .groups = "drop" )
-
-
-# Subcat-level summary # Wide format: not used.
-# summ_subcat_units <-
-#   df_obs_statements %>%
-#   group_by(CALENDAR_YEAR = FIRST_VIOL_YEAR, CATEGORY, SUBCATEGORY) %>%
-#   summarize(N_DISTINCT_CRUISES_REPORTED      = n_distinct(CRUISE)
-#             ,   N_DISTINCT_VESSPLANTS_REPORTED   = n_distinct(PERMIT[!is.na(PERMIT) & as.numeric(PERMIT) != 0])
-#             ,   N_DISTINCT_REGS_REPORTED         = n_distinct(OLE_REGULATION_SEQ)
-#             ,   N_HAULS           = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'HAUL' & !is.na(INCIDENT_UNIT)])
-#             ,   N_OFFLOADS        = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'OFFL' & !is.na(INCIDENT_UNIT)]) 
-#             ,   N_TRIPS           = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'TRIP' & !is.na(INCIDENT_UNIT)])
-#             ,   N_DAYS            = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'DAYS' & !is.na(INCIDENT_UNIT)])
-#             ,   N_DEPL            = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'DEPL' & !is.na(INCIDENT_UNIT)])
-#             ,   N_SAMPLES         = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'SAMP' & !is.na(INCIDENT_UNIT)])
-#             ,   N_MARINE_MAMMALS  = length(OLE_OBS_STATEMENT_DETAIL_SEQ[INCIDENT_UNIT == 'MARM' & !is.na(INCIDENT_UNIT)])
-#             ,   N_UNIT_ISSUES     = n_distinct(OLE_OBS_STATEMENT_DETAIL_SEQ[!is.na(UNIT_ISSUE)])
-#             ,   .groups = "drop" 
-#   )
+            .groups = "drop" ) 
 
 
 
@@ -261,12 +255,18 @@ summ_units <-
           ) %>%
   
   # OFFLOADS
+  # updated to resolve GIT issue:
+  # "52- offload denominator may be inflated for GOA plant data where only 30% is monitored #52"
+  # Do this by filtering out PLANT offloads that were NOT monitored.
+  # see the query in script 1 for details
   inner_join(
     df_obs_offloads %>%
       group_by(CALENDAR_YEAR = year(LANDING_DATE)) %>%
-      summarise(OFFLOADS = n_distinct(CRUISE, PERMIT, OFFLOAD_SEQ),
-                VESSEL_OBS_OFFLOADS = length(OFFLOAD_SEQ[VESSEL_OR_PLANT == 'V']),
-                PLANT_OBS_OFFLOADS  = length(OFFLOAD_SEQ[VESSEL_OR_PLANT == 'P']),
+      summarise(OFFLOADS = length(OFFLOAD_SEQ[ VESSEL_OR_PLANT == 'V' | 
+                                              (VESSEL_OR_PLANT == 'P' & PLANT_OFFL_MONITORED == 'Y' )]),
+                VESSEL_OBS_OFFLOADS = length(OFFLOAD_SEQ[VESSEL_OR_PLANT      == 'V']),
+                PLANT_OBS_OFFLOADS  = length(OFFLOAD_SEQ[VESSEL_OR_PLANT      == 'P' &
+                                                         PLANT_OFFL_MONITORED == 'Y'   ]),
                 .groups = "drop")
           ) %>%
   
@@ -545,10 +545,15 @@ table(chosen_samples_with_factors$CALENDAR_YEAR, chosen_samples_with_factors$COV
 
 
 # Offloads
+# UPDATE for new GIT issue re: need to filter out the occurrences associated with UNMONITORED PLANT OFFLOADS
+# ADK 20250506
 chosen_offloads_with_factors <-
-  df_obs_statements %>% 
+  df_obs_statements %>%
+  mutate(DUMMY = paste0(CRUISE, ',', PERMIT, ',', ANSWER)) %>%
   filter(!is.na(OLE_OBS_STATEMENT_UNIT_SEQ),
-         INCIDENT_UNIT == 'OFFL') %>%
+         INCIDENT_UNIT == 'OFFL',
+         ! DUMMY %in% c(v_unmtrd_plant_offloads)) %>%
+  select(-DUMMY) %>%
   mutate(CALENDAR_YEAR = FIRST_VIOL_YEAR,
          PERMIT = as.numeric(PERMIT),
          OFFLOAD_SEQ = as.numeric(ANSWER),
@@ -716,9 +721,14 @@ summ_units_for_factors <-
   ) %>%
   
   # OFFLOADS
+  # updated to resolve GIT issue:
+  # "52- offload denominator may be inflated for GOA plant data where only 30% is monitored #52"
+  # Do this by filtering out PLANT offloads that were NOT monitored.
+  # see the query in script 1 for details
   left_join(
     offloads_with_factors %>%
-      distinct(CRUISE, PERMIT, OFFLOAD_SEQ, CALENDAR_YEAR, COVERAGE_TYPE, VESSEL_TYPE, NMFS_REGION, VESSEL_OR_PLANT) %>%  # Adding add'l factors
+      distinct(CRUISE, PERMIT, OFFLOAD_SEQ, CALENDAR_YEAR, COVERAGE_TYPE, VESSEL_TYPE, NMFS_REGION, VESSEL_OR_PLANT, PLANT_OFFL_MONITORED) %>%  # Adding add'l factors
+      filter(VESSEL_TYPE != 'PLANT' | (VESSEL_TYPE == 'PLANT' & PLANT_OFFL_MONITORED == 'Y')) %>%
       group_by(CALENDAR_YEAR, COVERAGE_TYPE, VESSEL_TYPE, NMFS_REGION) %>%  # Adding add'l factors
       summarise(OFFLOADS = n_distinct(CRUISE, PERMIT, OFFLOAD_SEQ),
                 .groups = "drop")
@@ -771,7 +781,7 @@ units_for_factors_melt <-
                  variable.name = "INCIDENT_UNIT") 
 
 ######### #
-# Rates for Units ---------------------
+# Rates for Units-Factors---------------------
 ######### #
 
 # REG-level rate

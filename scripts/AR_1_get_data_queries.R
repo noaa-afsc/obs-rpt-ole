@@ -403,7 +403,18 @@ df_obs_offloads <-
                              p_permit        => permit,
                              p_answer        => to_char(offload_seq),
                              p_incident_unit => 'OFFL'
-                             )  AS offload_description         
+                             )  AS offload_description,
+                   CASE WHEN EXISTS 
+                      (SELECT 1 FROM norpac.atl_salmon
+                        WHERE cruise = o.cruise
+                          AND permit = o.permit
+                          AND offload_seq = o.offload_seq)
+                          OR EXISTS  
+                      (SELECT 1 FROM norpac.atl_sample
+                        WHERE cruise = o.cruise
+                          AND permit = o.permit
+                          AND offload_seq = o.offload_seq)
+                        THEN 'Y' ELSE 'N' END AS plant_offl_monitored  
               FROM norpac.atl_offload o
              WHERE cruise >= ", first_cruise,
              " AND trunc(delivery_end_date) BETWEEN to_date('", first_date, "', 'DD-MON-RR') AND to_date('", last_date, "', 'DD-MON-RR')
