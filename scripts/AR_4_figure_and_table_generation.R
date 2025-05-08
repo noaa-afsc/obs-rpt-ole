@@ -717,7 +717,14 @@ factor_plot <- plot_format_fxn(df = for_factor_figures %>% filter(SUPER_CAT == c
                                rate_x = rate_x, 
                                start_color = start_color, 
                                end_color = end_color,
-                               facet_formula = NMFS_REGION ~ COVERAGE_TYPE + VESSEL_TYPE + INCIDENT_UNIT
+                               
+                               # Removing COVERAGE_TYPE from this plot for 2024.  This is because
+                               # it only has CMCP subcategory and that is restricted to PLANT which was only covered by 
+                               # FULL coverage observers in 2025, even though the GOA had partial monitoring (33%)
+                               # Put it back if desired for next year.
+                               
+                               # facet_formula = NMFS_REGION ~ COVERAGE_TYPE + VESSEL_TYPE + INCIDENT_UNIT
+                               facet_formula = NMFS_REGION ~ VESSEL_TYPE + INCIDENT_UNIT
                                )
 #Give it a name
 assign(paste0(tolower(gsub("-", "_", super_levels$SUPER_FACT[i])), "_plot"), factor_plot)
